@@ -5,10 +5,11 @@
 #   window-size.sh <Meld.app> <label> <dossier-de-sortie>
 #
 # Mesure, avec captures :
-#   fill       : fenêtre demandée à la taille de la zone utile de l'écran ;
-#                cadre obtenu (CGWindowList, ombre comprise) et taille vue
-#                par l'accessibilité
+#   maximize   : double-clic sur la barre de titre (maximisation GTK) ;
+#                cadre obtenu (CGWindowList, ombre comprise) et capture
 #   f11        : plein écran de Meld (F11), tenu ou annulé au bout de 10 s ?
+#                (le raccourci « Afficher le bureau » de macOS, sur F11, est
+#                désactivé pour que la touche arrive à Meld)
 #   native     : plein écran natif de macOS (AXFullScreen), idem
 # N'échoue pas : c'est un banc de mesure, à lire dans window-size.txt.
 
@@ -23,6 +24,14 @@ mkdir -p "$OUT"
 exec > >(tee -a "$OUT/window-size.txt") 2>&1
 
 swiftc -O -o /tmp/winfo "$HERE/diag/winfo.swift" 2>&1 | grep -v warning || true
+swiftc -O -o /tmp/click "$HERE/diag/click.swift" 2>&1 | grep -v warning || true
+
+# F11 = « Afficher le bureau » (raccourcis 36 et 37) : à désactiver
+for k in 36 37; do
+  defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add $k \
+    "<dict><key>enabled</key><false/></dict>"
+done
+/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u 2>/dev/null || true
 defaults delete $DOMAIN >/dev/null 2>&1 || true
 
 "$APP/Contents/MacOS/Meld" "$HERE/testdata/left.py" "$HERE/testdata/right.py" &
@@ -40,12 +49,18 @@ state() {
 
 state initial
 
-echo "---- fill"
-read -r X Y W H < <(/tmp/winfo $PID | sed -n 's/.*zone utile x=\([0-9]*\) y=\([0-9]*\) w=\([0-9]*\) h=\([0-9]*\).*/\1 \2 \3 \4/p')
-echo "demandé : position {$X, $Y} taille {$W, $H}"
-se "set position of window 1 to {$X, $Y}" >/dev/null
-se "set size of window 1 to {$W, $H}" >/dev/null
-sleep 3; state "fill"; screencapture -x "$OUT/$LABEL-fill.png"
+echo "---- maximize"
+front
+# double-clic sur la barre de titre : ~30 pt sous le haut du cadre, ombre
+# comprise ou non
+title() {
+  read -r FX FY FW < <(/tmp/winfo $PID | sed -n 's/.*fenêtre "Meld" x=\(-*[0-9]*\) y=\(-*[0-9]*\) w=\([0-9]*\).*/\1 \2 \3/p' | head -1)
+  /tmp/click $((FX + FW / 2)) $((FY + 30))
+}
+title
+sleep 3; state "maximize"; screencapture -x "$OUT/$LABEL-maximize.png"
+front; title
+sleep 3; state "après démaximisation"
 
 echo "---- f11"
 front
