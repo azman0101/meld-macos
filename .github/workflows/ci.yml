@@ -4,13 +4,16 @@ name: meld-macos
 
 on:
   push:
+    branches: ['**']
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
   # Les jobs se déclenchent selon des marqueurs dans le message de commit :
   # [repro], [placement], [fix], [cask]. workflow_dispatch lance tout.
+  # Un tag v* lance seulement la release.
   repro:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[repro]')
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[repro]'))
     strategy:
       fail-fast: false
       matrix:
@@ -31,8 +34,10 @@ jobs:
           name: repro-${{ matrix.os }}-${{ matrix.meld.label }}
           path: out/
 
+  # Teste le Meld d'origine : l'échec du scénario « large » est le bug lui-même.
   placement:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[placement]')
+    continue-on-error: true
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[placement]'))
     strategy:
       fail-fast: false
       matrix:
@@ -55,7 +60,7 @@ jobs:
           path: out/
 
   fix:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fix]')
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fix]'))
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +88,7 @@ jobs:
           path: out/
 
   cask:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[cask]')
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[cask]'))
     strategy:
       fail-fast: false
       matrix:
@@ -108,4 +113,22 @@ jobs:
         if: always()
         with:
           name: cask-${{ matrix.os }}
+          path: out/
+
+  # Tag v<version Meld>-fix<n>, ex. v3.22.3+105-fix1 ou v3.24.1-fix1.
+  release:
+    if: github.ref_type == 'tag'
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/release.sh "${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-${{ github.ref_name }}
           path: out/

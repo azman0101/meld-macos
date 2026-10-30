@@ -69,6 +69,7 @@ Meld 3.22.3/3.24.1) :
 | `scripts/placement.sh`         | test du placement de fenêtre (4 scénarios)                   |
 | `scripts/repack.sh`            | applique un patch au DMG officiel, signe ad hoc, refait le DMG |
 | `scripts/test-cask.sh`         | installe le cask depuis un tap local et vérifie              |
+| `scripts/release.sh`           | construit, teste et publie le DMG corrigé d'un tag           |
 | `diag/gdkver.m`                | version de macOS vue par GTK                                 |
 | `diag/winfo.swift`             | géométrie des fenêtres et zone utile de l'écran              |
 | `patches/`                     | correctifs Meld                                              |
@@ -79,7 +80,25 @@ Le cask lui-même est dans
 (`Casks/meld-patched.rb`) ; le job `cask` le récupère depuis ce dépôt.
 
 Les jobs CI se déclenchent selon un marqueur dans le message de commit :
-`[repro]`, `[placement]`, `[fix]`, `[cask]`.
+`[repro]`, `[placement]`, `[fix]`, `[cask]` (`workflow_dispatch` les lance
+tous). Les jobs `placement` testent le Meld d'origine : leur échec sur le
+scénario `large` est attendu et ne fait pas échouer le run. Seuls les
+artefacts `fix-*` et `cask-*` contiennent un DMG ; `repro-*` et
+`placement-*` ne contiennent que journaux et captures.
+
+## Release
+
+Pousser un tag `v<version de Meld>-fix<n>` publie le DMG corrigé en release
+GitHub (job `release`, `scripts/release.sh`) après les 4 scénarios de
+placement :
+
+```bash
+git tag v3.22.3+105-fix1 && git push origin v3.22.3+105-fix1
+git tag v3.24.1-fix1 && git push origin v3.24.1-fix1
+```
+
+Reporter ensuite le sha256 affiché dans les notes de release dans le cask du
+tap.
 
 ## Cask Homebrew
 
@@ -111,9 +130,8 @@ la release et le sha256 par ceux du DMG construit localement.
 
 ## Suite
 
-1. Ajouter un job de release : `repack.sh` puis publication du DMG en release
-   GitHub, et mise à jour du sha256 du cask dans le tap. Tant que cette
-   première release n'existe pas, le cask n'est pas installable.
+1. Mettre à jour le cask du tap automatiquement à la release (demande un
+   jeton avec accès en écriture à azman0101/homebrew-tap).
 2. Proposer le correctif upstream sur meld#966.
 
 Historique : ce projet a démarré dans
