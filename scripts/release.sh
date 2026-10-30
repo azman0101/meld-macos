@@ -20,14 +20,17 @@ case $UPSTREAM in
     URL=https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/$UPSTREAM/Meld-${UPSTREAM}_arm64.dmg
     PATCH=$HERE/patches/meld-3.22-window-placement.patch ;;
   3.24.*)
-    URL=https://gitlab.gnome.org/api/v4/projects/301/packages/generic/meld/$UPSTREAM/Meld-$UPSTREAM-arm64.dmg
+    # code de 3.24 sur le runtime de 3.22.3+105 : celui de 3.24 écrase les
+    # espaces de l'interface (voir README)
+    URL=https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
+    CODE=https://gitlab.gnome.org/api/v4/projects/301/packages/generic/meld/$UPSTREAM/Meld-$UPSTREAM-arm64.dmg
     PATCH=$HERE/patches/meld-3.24-window-placement.patch ;;
   *)
     echo "version non prise en charge : $UPSTREAM"; exit 1 ;;
 esac
 
 DMG=out/Meld-$VERSION-arm64.dmg
-"$HERE/scripts/repack.sh" "$URL" "$PATCH" "$DMG"
+"$HERE/scripts/repack.sh" "$URL" "$PATCH" "$DMG" "${CODE:-}"
 "$HERE/scripts/placement.sh" /Applications/Meld.app "$VERSION" out
 
 SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
@@ -36,6 +39,6 @@ echo "sha256 $SHA"
 gh release create "$TAG" "$DMG" --target "$GITHUB_SHA" --title "Meld $VERSION" --notes "\
 Meld $UPSTREAM (arm64) avec le correctif du placement de fenêtre (meld#966).
 
-Construit à partir de $URL, signé ad hoc seulement.
+Construit à partir de $URL${CODE:+ (code de Meld : $CODE)}, signé ad hoc seulement.
 
 sha256 : \`$SHA\`"
