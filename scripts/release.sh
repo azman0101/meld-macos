@@ -32,7 +32,8 @@ DMG=out/Meld-$VERSION-arm64.dmg
 
 SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
 echo "sha256 $SHA"
-gh release create "$TAG" "$DMG" --title "Meld $VERSION" --notes "\
+# --target : crée le tag sur ce commit s'il n'existe pas (workflow_dispatch)
+gh release create "$TAG" "$DMG" --target "$GITHUB_SHA" --title "Meld $VERSION" --notes "\
 Meld $UPSTREAM (arm64) avec le correctif du placement de fenêtre (meld#966).
 
 Construit à partir de $URL, signé ad hoc seulement.

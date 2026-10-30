@@ -7,13 +7,18 @@ on:
     branches: ['**']
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release à publier (ex. v3.22.3+105-fix1) ; vide = tous les tests"
+        required: false
+        default: ""
 
 jobs:
   # Les jobs se déclenchent selon des marqueurs dans le message de commit :
   # [repro], [placement], [fix], [cask]. workflow_dispatch lance tout.
-  # Un tag v* lance seulement la release.
+  # Un tag v*, ou workflow_dispatch avec un tag, lance seulement la release.
   repro:
-    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[repro]'))
+    if: github.ref_type == 'branch' && ((github.event_name == 'workflow_dispatch' && inputs.tag == '') || contains(github.event.head_commit.message, '[repro]'))
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +42,7 @@ jobs:
   # Teste le Meld d'origine : l'échec du scénario « large » est le bug lui-même.
   placement:
     continue-on-error: true
-    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[placement]'))
+    if: github.ref_type == 'branch' && ((github.event_name == 'workflow_dispatch' && inputs.tag == '') || contains(github.event.head_commit.message, '[placement]'))
     strategy:
       fail-fast: false
       matrix:
@@ -60,7 +65,7 @@ jobs:
           path: out/
 
   fix:
-    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fix]'))
+    if: github.ref_type == 'branch' && ((github.event_name == 'workflow_dispatch' && inputs.tag == '') || contains(github.event.head_commit.message, '[fix]'))
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +93,7 @@ jobs:
           path: out/
 
   cask:
-    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[cask]'))
+    if: github.ref_type == 'branch' && ((github.event_name == 'workflow_dispatch' && inputs.tag == '') || contains(github.event.head_commit.message, '[cask]'))
     strategy:
       fail-fast: false
       matrix:
@@ -117,18 +122,19 @@ jobs:
 
   # Tag v<version Meld>-fix<n>, ex. v3.22.3+105-fix1 ou v3.24.1-fix1.
   release:
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || inputs.tag != ''
     runs-on: macos-15
     timeout-minutes: 30
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: scripts/release.sh "${{ github.ref_name }}"
+      - run: scripts/release.sh "$TAG"
         env:
+          TAG: ${{ inputs.tag || github.ref_name }}
           GH_TOKEN: ${{ github.token }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: release-${{ github.ref_name }}
+          name: release-${{ inputs.tag || github.ref_name }}
           path: out/
