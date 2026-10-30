@@ -13,7 +13,7 @@
 # runtime du premier. Sert à faire tourner Meld 3.24.1 sur le runtime de
 # 3.22.3+105, dont Pango n'écrase pas les espaces de l'interface.
 #
-# EXTRA_PATCH=<patch> applique en plus un correctif expérimental.
+# EXTRA_PATCH="<patch> ..." applique en plus des correctifs expérimentaux.
 
 set -euo pipefail
 
@@ -57,9 +57,9 @@ if [[ -n $CODE ]]; then
 fi
 
 patch -d "$SITE" -p1 --forward < "$PATCH"
-if [[ -n ${EXTRA_PATCH:-} ]]; then
-  patch -d "$SITE" -p1 --forward < "$EXTRA_PATCH"
-fi
+for p in ${EXTRA_PATCH:-}; do
+  patch -d "$SITE" -p1 --forward < "$p"
+done
 find "$SITE/meld" -name '*.pyc' -delete
 find "$SITE/meld" -name "windowstate*.pyc" -delete
 
