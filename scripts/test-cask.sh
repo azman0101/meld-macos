@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 #
-# Installe le cask meld-patched (celui du dépôt azman0101/homebrew-tap) depuis
+# Installe un cask meld-patched* (celui du dépôt azman0101/homebrew-tap) depuis
 # un tap local, en le faisant pointer sur un DMG local, puis vérifie
 # l'installation (app, commande meld, quarantaine, lancement).
 #
-#   test-cask.sh <meld-patched.rb> <dmg>
+#   test-cask.sh <Casks/meld-patched*.rb> <dmg>
 
 set -euo pipefail
 
 CASK=$1
+NAME=$(basename "$CASK" .rb)
 DMG=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
 SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
 
@@ -20,13 +21,13 @@ mkdir -p "$TAP/Casks"
 # même cask, mais sha256 du DMG local et URL file:// à la place de la release
 sed -E -e "s|^(  sha256 )\".*\"|\\1\"$SHA\"|" \
   -e "s|https://github.com/azman0101/meld-macos/releases/download/[^/]+/|file://$(dirname "$DMG")/|" \
-  "$CASK" > "$TAP/Casks/meld-patched.rb"
+  "$CASK" > "$TAP/Casks/$NAME.rb"
 
-brew style "$TAP/Casks/meld-patched.rb"
+brew style "$TAP/Casks/$NAME.rb"
 # les taps tiers doivent être approuvés explicitement
 brew trust azman0101/test
-brew audit --cask --strict azman0101/test/meld-patched
-brew install --cask azman0101/test/meld-patched
+brew audit --cask --strict azman0101/test/$NAME
+brew install --cask azman0101/test/$NAME
 
 echo "== vérifications"
 test -d /Applications/Meld.app
