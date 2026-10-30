@@ -65,6 +65,21 @@ Meld 3.22.3/3.24.1) :
 | taille enregistrée > écran       | **ÉCHEC** | OK      |
 | petite taille enregistrée        | OK        | OK      |
 
+## Plein écran
+
+Sur macOS, en sortie de plein écran (F11 ou plein écran natif), le backend
+quartz de GTK ne rend pas le cadre d'avant : la fenêtre garde la taille de
+l'écran, sa barre de titre passe sous la barre de menus, et Meld enregistre
+cette taille comme taille normale (Meld d'origine compris). Le patch de
+placement retient taille et position à l'entrée du plein écran et les
+rétablit dans la zone utile à la sortie. Mesuré par `scripts/window-size.sh`
+(job `window`, marqueur `[window]`).
+
+`patches/experimental/csd-no-shadow.patch` retire l'ombre des décorations
+GTK, qui fait partie de la NSWindow : une fenêtre redimensionnée à la main
+s'arrête sinon à ~24 pt des bords de l'écran. Pas encore intégré : la poignée
+de redimensionnement devient une bordure de 2 px, à valider sur un vrai Mac.
+
 ## Contenu
 
 | chemin                         | rôle                                                         |
@@ -75,6 +90,8 @@ Meld 3.22.3/3.24.1) :
 | `scripts/repack.sh`            | applique un patch au DMG officiel, signe ad hoc, refait le DMG |
 | `scripts/test-cask.sh`         | installe le cask depuis un tap local et vérifie              |
 | `scripts/release.sh`           | construit, teste et publie le DMG corrigé d'un tag           |
+| `scripts/window-size.sh`       | diagnostic : maximisation, plein écran et sortie             |
+| `diag/click.swift`             | double-clic souris (pour window-size.sh)                     |
 | `diag/gdkver.m`                | version de macOS vue par GTK                                 |
 | `diag/winfo.swift`             | géométrie des fenêtres et zone utile de l'écran              |
 | `patches/`                     | correctifs Meld                                              |

@@ -142,6 +142,36 @@ jobs:
           name: cask-${{ matrix.os }}-${{ matrix.cask.name }}
           path: out/
 
+  # Diagnostic plein écran / taille maximale : Meld d'origine, corrigé, et
+  # corrigé + correctifs expérimentaux. N'échoue pas : lire window-size.txt.
+  window:
+    if: github.ref_type == 'branch' && contains(github.event.head_commit.message, '[window]')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+        variant: [orig, fix, candidate]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      DMG: https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.variant == 'orig'
+        run: scripts/install.sh "$DMG"
+      - if: matrix.variant == 'fix'
+        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/fix.dmg
+      - if: matrix.variant == 'candidate'
+        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/candidate.dmg
+        env:
+          EXTRA_PATCH: patches/experimental/csd-no-shadow.patch
+      - run: rm -f out/*.dmg; scripts/window-size.sh /Applications/Meld.app "${{ matrix.variant }}" out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-${{ matrix.os }}-${{ matrix.variant }}
+          path: out/
+
   # Tag v<version Meld>-fix<n>, ex. v3.22.3+105-fix1 ou v3.24.1-fix1.
   release:
     if: github.ref_type == 'tag' || inputs.tag != ''

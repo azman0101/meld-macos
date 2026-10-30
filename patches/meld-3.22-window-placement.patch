@@ -2,16 +2,18 @@ diff --git a/meld/windowstate.py b/meld/windowstate.py
 index e71f5779..f4367225 100644
 --- a/meld/windowstate.py
 +++ b/meld/windowstate.py
-@@ -14,6 +14,8 @@
+@@ -14,7 +14,9 @@
  # along with this program.  If not, see <http://www.gnu.org/licenses/>.
  
  
+-from gi.repository import Gdk, Gio, GObject
 +import sys
 +
- from gi.repository import Gdk, Gio, GObject
++from gi.repository import Gdk, Gio, GLib, GObject
  
  from meld.settings import load_settings_schema
-@@ -52,11 +54,44 @@ class SavedWindowState(GObject.GObject):
+ 
+@@ -52,11 +54,82 @@
          self.settings.bind('is-fullscreen', self, 'is-fullscreen', bind_flags)
  
          window.set_default_size(self.props.width, self.props.height)
@@ -20,6 +22,11 @@ index e71f5779..f4367225 100644
 +            # nor places it sensibly, so a size saved on a larger display
 +            # leaves the title bar under the menu bar (#966).
 +            window.connect("map-event", self.on_map_fit_to_workarea)
++            # Leaving fullscreen, the quartz backend keeps the screen-sized
++            # frame instead of restoring the previous one.
++            self.pre_fullscreen = None
++            window.connect(
++                "window-state-event", self.on_window_state_fullscreen)
          if self.props.is_maximized:
              window.maximize()
          if self.props.is_fullscreen:
@@ -29,7 +36,33 @@ index e71f5779..f4367225 100644
 +        window.disconnect_by_func(self.on_map_fit_to_workarea)
 +        if self.props.is_maximized or self.props.is_fullscreen:
 +            return False
++        self.fit_to_workarea(window, *window.get_size())
++        return False
 +
++    def on_window_state_fullscreen(self, window, event):
++        if not event.changed_mask & Gdk.WindowState.FULLSCREEN:
++            return False
++        if event.new_window_state & Gdk.WindowState.FULLSCREEN:
++            self.pre_fullscreen = (
++                self.props.width, self.props.height, window.get_position())
++        elif self.pre_fullscreen:
++            # Let the quartz backend finish leaving fullscreen first
++            GLib.timeout_add(300, self.restore_pre_fullscreen, window)
++        return False
++
++    def restore_pre_fullscreen(self, window):
++        width, height, position = self.pre_fullscreen
++        self.pre_fullscreen = None
++        if not window.is_maximized():
++            self.fit_to_workarea(window, width, height, position)
++            self.props.width, self.props.height = width, height
++        return GLib.SOURCE_REMOVE
++
++    def fit_to_workarea(self, window, width, height, position=None):
++        """Resize and move the window to fit in the screen's work area
++
++        The window is centred, or kept at position if it fits there.
++        """
 +        gdk_window = window.get_window()
 +        display = window.get_display()
 +        monitor = display.get_primary_monitor() or display.get_monitor(0)
@@ -38,20 +71,27 @@ index e71f5779..f4367225 100644
 +
 +        workarea = monitor.get_workarea()
 +        frame = gdk_window.get_frame_extents()
-+        width, height = window.get_size()
++        current_width, current_height = window.get_size()
 +        # Client-side decorations: header bar and shadows
-+        decoration_width = frame.width - width
-+        decoration_height = frame.height - height
++        decoration_width = frame.width - current_width
++        decoration_height = frame.height - current_height
 +
 +        fit_width = min(width, workarea.width - decoration_width)
 +        fit_height = min(height, workarea.height - decoration_height)
-+        if (fit_width, fit_height) != (width, height):
++        if (fit_width, fit_height) != (current_width, current_height):
 +            window.resize(fit_width, fit_height)
 +
-+        x = workarea.x + (workarea.width - fit_width - decoration_width) // 2
-+        y = workarea.y + (workarea.height - fit_height - decoration_height) // 2
++        outer_width = fit_width + decoration_width
++        outer_height = fit_height + decoration_height
++        x = workarea.x + (workarea.width - outer_width) // 2
++        y = workarea.y + (workarea.height - outer_height) // 2
++        if position is not None:
++            px, py = position
++            if (workarea.x <= px <= workarea.x + workarea.width - outer_width
++                    and workarea.y <= py <=
++                    workarea.y + workarea.height - outer_height):
++                x, y = px, py
 +        gdk_window.move(x, y)
-+        return False
 +
      def on_size_allocate(self, window, allocation):
          if not (self.props.is_maximized or self.props.is_fullscreen):
