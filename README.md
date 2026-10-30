@@ -38,9 +38,14 @@ Pistes écartées :
   `repro`). Le HiDPI (Retina) n'a pas pu être testé : l'écran virtuel des
   runners ne propose que le 1×.
 
-À noter, hors périmètre : Meld 3.24.1 (DMG officiel GNOME) affiche les
-espaces de la police de l'interface trop serrés (« Ln1,Col1 »), ce que ne
-fait pas 3.22.3+105. Le cask part donc de 3.22.3+105.
+Espaces de l'interface : le DMG officiel GNOME de Meld 3.24.1 affiche les
+espaces de la police de l'interface trop serrés (« Ln1,Col1 », « .. » au lieu
+de « … »), ce que ne fait pas 3.22.3+105. La cause est dans le runtime
+embarqué (Pango 1.52.2 et GTK 3.24.43, sans `etc/fonts/fonts.conf`), pas dans
+le code de Meld : 3.22.3+105 embarque Pango 1.56.0 et GTK 3.24.48. Les deux
+DMG ont le même Python 3.10, PyGObject 3.50 et GtkSourceView 4 ; les builds
+3.24 sont donc faits avec le code de 3.24.1 posé sur le runtime de 3.22.3+105
+(`repack.sh` avec un second DMG, entrée `meld-3.24.1-hybrid` du job `fix`).
 
 ## Le correctif
 
@@ -94,7 +99,7 @@ placement :
 
 ```bash
 git tag v3.22.3+105-fix1 && git push origin v3.22.3+105-fix1
-git tag v3.24.1-fix1 && git push origin v3.24.1-fix1
+git tag v3.24.1-fix2 && git push origin v3.24.1-fix2
 ```
 
 Ou, sans pousser de tag : lancer le workflow à la main (`workflow_dispatch`)
