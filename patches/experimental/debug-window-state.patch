@@ -1,0 +1,23 @@
+--- a/meld/windowstate.py	2026-10-30 18:08:20.554900864 +0000
++++ b/meld/windowstate.py	2026-10-30 18:08:20.579189464 +0000
+@@ -93,6 +93,10 @@
+         return False
+ 
+     def on_size_allocate(self, window, allocation):
++        gdk_window = window.get_window()
++        print("DEBUG size-allocate", window.get_size(),
++              gdk_window.get_state() if gdk_window else None,
++              self.props.is_fullscreen, file=sys.stderr, flush=True)
+         if not (self.props.is_maximized or self.props.is_fullscreen):
+             width, height = window.get_size()
+             if width != self.props.width:
+@@ -102,6 +106,9 @@
+ 
+     def on_window_state_event(self, window, event):
+         state = event.window.get_state()
++        print("DEBUG window-state-event changed", event.changed_mask,
++              "new", event.new_window_state, window.get_size(),
++              file=sys.stderr, flush=True)
+ 
+         is_maximized = state & Gdk.WindowState.MAXIMIZED
+         if is_maximized != self.props.is_maximized:

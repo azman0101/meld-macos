@@ -164,7 +164,7 @@ jobs:
       - if: matrix.variant == 'candidate'
         run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/candidate.dmg
         env:
-          EXTRA_PATCH: patches/experimental/csd-no-shadow.patch patches/experimental/native-fullscreen.patch
+          EXTRA_PATCH: patches/experimental/csd-no-shadow.patch patches/experimental/debug-window-state.patch
       - run: rm -f out/*.dmg; scripts/window-size.sh /Applications/Meld.app "${{ matrix.variant }}" out
       - uses: actions/upload-artifact@v4
         if: always()
