@@ -8,9 +8,9 @@ on:
 
 jobs:
   # Les jobs se déclenchent selon des marqueurs dans le message de commit :
-  # [repro], [placement], [fix], [cask].
+  # [repro], [placement], [fix], [cask]. workflow_dispatch lance tout.
   repro:
-    if: contains(github.event.head_commit.message, '[repro]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[repro]')
     strategy:
       fail-fast: false
       matrix:
@@ -32,7 +32,7 @@ jobs:
           path: out/
 
   placement:
-    if: contains(github.event.head_commit.message, '[placement]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[placement]')
     strategy:
       fail-fast: false
       matrix:
@@ -55,7 +55,7 @@ jobs:
           path: out/
 
   fix:
-    if: contains(github.event.head_commit.message, '[fix]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fix]')
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +83,7 @@ jobs:
           path: out/
 
   cask:
-    if: contains(github.event.head_commit.message, '[cask]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[cask]')
     strategy:
       fail-fast: false
       matrix:
