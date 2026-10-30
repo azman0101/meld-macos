@@ -97,6 +97,9 @@ git tag v3.22.3+105-fix1 && git push origin v3.22.3+105-fix1
 git tag v3.24.1-fix1 && git push origin v3.24.1-fix1
 ```
 
+Ou, sans pousser de tag : lancer le workflow à la main (`workflow_dispatch`)
+sur `main` avec le paramètre `tag` ; la release crée alors le tag.
+
 Reporter ensuite le sha256 affiché dans les notes de release dans le cask du
 tap.
 
