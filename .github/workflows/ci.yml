@@ -1,0 +1,134 @@
+# Projet meld-macos : reproduire le bug d'affichage de Meld sur macOS Tahoe
+# et valider les builds corrigés. Voir README.md.
+name: meld-macos
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  # Les jobs se déclenchent selon des marqueurs dans le message de commit :
+  # [repro], [placement], [fix], [cask]. workflow_dispatch lance tout.
+  # Un tag v* lance seulement la release.
+  repro:
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[repro]'))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+        meld:
+          - label: meld-3.22.3+105
+            url: https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
+          - label: meld-3.24.1
+            url: https://gitlab.gnome.org/api/v4/projects/301/packages/generic/meld/3.24.1/Meld-3.24.1-arm64.dmg
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/repro.sh "${{ matrix.meld.url }}" "${{ matrix.meld.label }}" "out"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repro-${{ matrix.os }}-${{ matrix.meld.label }}
+          path: out/
+
+  # Teste le Meld d'origine : l'échec du scénario « large » est le bug lui-même.
+  placement:
+    continue-on-error: true
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[placement]'))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+        meld:
+          - label: meld-3.22.3+105
+            url: https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
+          - label: meld-3.24.1
+            url: https://gitlab.gnome.org/api/v4/projects/301/packages/generic/meld/3.24.1/Meld-3.24.1-arm64.dmg
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/install.sh "${{ matrix.meld.url }}"
+      - run: scripts/placement.sh /Applications/Meld.app "${{ matrix.meld.label }}" out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: placement-${{ matrix.os }}-${{ matrix.meld.label }}
+          path: out/
+
+  fix:
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[fix]'))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+        meld:
+          - label: meld-3.22.3+105
+            url: https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
+            patch: meld-3.22-window-placement.patch
+          - label: meld-3.24.1
+            url: https://gitlab.gnome.org/api/v4/projects/301/packages/generic/meld/3.24.1/Meld-3.24.1-arm64.dmg
+            patch: meld-3.24-window-placement.patch
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: >
+          scripts/repack.sh "${{ matrix.meld.url }}"
+          "patches/${{ matrix.meld.patch }}"
+          "out/${{ matrix.meld.label }}-fix-arm64.dmg"
+      - run: scripts/placement.sh /Applications/Meld.app "${{ matrix.meld.label }}-fix" out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fix-${{ matrix.os }}-${{ matrix.meld.label }}
+          path: out/
+
+  cask:
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[cask]'))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # le cask vit dans le tap : on teste la version publiée
+      - uses: actions/checkout@v4
+        with:
+          repository: azman0101/homebrew-tap
+          path: tap
+      - run: >
+          scripts/repack.sh
+          https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
+          patches/meld-3.22-window-placement.patch
+          out/Meld-3.22.3+105-fix1-arm64.dmg
+      - run: scripts/test-cask.sh tap/Casks/meld-patched.rb out/Meld-3.22.3+105-fix1-arm64.dmg
+      - run: scripts/placement.sh /Applications/Meld.app meld-cask out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cask-${{ matrix.os }}
+          path: out/
+
+  # Tag v<version Meld>-fix<n>, ex. v3.22.3+105-fix1 ou v3.24.1-fix1.
+  release:
+    if: github.ref_type == 'tag'
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/release.sh "${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-${{ github.ref_name }}
+          path: out/
