@@ -37,7 +37,7 @@ echo "== $LABEL : écran virtuel en ${SCALE}x"
 VD=$!
 # la création de l'écran (surtout en 2x) peut prendre plusieurs dizaines de secondes
 for _ in $(seq 1 60); do
-  grep -qE '^(display id|échec)' /tmp/vdisplay.log 2>/dev/null && break
+  grep -qE '^(display id [0-9]+$|échec)' /tmp/vdisplay.log 2>/dev/null && break
   kill -0 $VD 2>/dev/null || break
   sleep 1
 done
