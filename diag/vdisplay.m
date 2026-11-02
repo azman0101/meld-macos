@@ -94,6 +94,7 @@ static BOOL select_hidpi(CGDirectDisplayID id, unsigned int w) {
 }
 
 int main(int argc, char **argv) {
+  setvbuf(stdout, NULL, _IONBF, 0);  // le script lit le journal pendant l'exécution
   @autoreleasepool {
     unsigned int w = (unsigned int)atoi(argv[1]), h = (unsigned int)atoi(argv[2]);
     double seconds = atof(argv[3]);

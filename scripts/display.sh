@@ -35,7 +35,13 @@ defaults delete $DOMAIN >/dev/null 2>&1 || true
 echo "== $LABEL : écran virtuel en ${SCALE}x"
 /tmp/vdisplay 1280 800 900 "$SCALE" > /tmp/vdisplay.log 2>&1 &
 VD=$!
-sleep 14
+# la création de l'écran (surtout en 2x) peut prendre plusieurs dizaines de secondes
+for _ in $(seq 1 60); do
+  grep -qE '^(display id|échec)' /tmp/vdisplay.log 2>/dev/null && break
+  kill -0 $VD 2>/dev/null || break
+  sleep 1
+done
+sleep 4
 cat /tmp/vdisplay.log
 
 "$APP/Contents/MacOS/Meld" "$HERE/testdata/left.py" "$HERE/testdata/right.py" &
