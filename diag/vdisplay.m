@@ -66,7 +66,7 @@ static double scale_of(CGDirectDisplayID id) {
 
 // Un écran virtuel HiDPI offre un mode « looks like w x h » en 2x à côté du
 // mode en pixels : il faut le sélectionner pour que l'écran passe en 2x.
-static BOOL select_hidpi(CGDirectDisplayID id, unsigned int w) {
+static BOOL select_hidpi(CGDirectDisplayID id) {
   const void *keys[] = { kCGDisplayShowDuplicateLowResolutionModes };
   const void *vals[] = { kCFBooleanTrue };
   CFDictionaryRef opts = CFDictionaryCreate(NULL, keys, vals, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
@@ -75,19 +75,20 @@ static BOOL select_hidpi(CGDirectDisplayID id, unsigned int w) {
   CGDisplayModeRef pick = NULL;
   for (CFIndex i = 0; modes && i < CFArrayGetCount(modes); i++) {
     CGDisplayModeRef m = (CGDisplayModeRef)CFArrayGetValueAtIndex(modes, i);
-    printf("  mode %zux%zu, pixels %zux%zu\n", CGDisplayModeGetWidth(m), CGDisplayModeGetHeight(m),
-           CGDisplayModeGetPixelWidth(m), CGDisplayModeGetPixelHeight(m));
-    if (CGDisplayModeGetWidth(m) == w && CGDisplayModeGetPixelWidth(m) == 2 * w) pick = m;
+    BOOL x2 = CGDisplayModeGetPixelWidth(m) == 2 * CGDisplayModeGetWidth(m);
+    if (x2 && (!pick || CGDisplayModeGetWidth(m) > CGDisplayModeGetWidth(pick))) pick = m;
   }
   BOOL ok = NO;
   if (pick) {
+    printf("  mode 2x choisi : %zux%zu points, %zux%zu pixels\n", CGDisplayModeGetWidth(pick), CGDisplayModeGetHeight(pick),
+           CGDisplayModeGetPixelWidth(pick), CGDisplayModeGetPixelHeight(pick));
     CGDisplayConfigRef cfg;
     if (CGBeginDisplayConfiguration(&cfg) == kCGErrorSuccess) {
       CGConfigureDisplayWithDisplayMode(cfg, id, pick, NULL);
       ok = CGCompleteDisplayConfiguration(cfg, kCGConfigureForSession) == kCGErrorSuccess;
     }
   } else {
-    printf("  pas de mode %ux? en 2x\n", w);
+    printf("  aucun mode en 2x\n");
   }
   if (modes) CFRelease(modes);
   return ok;
@@ -99,24 +100,20 @@ int main(int argc, char **argv) {
     unsigned int w = (unsigned int)atoi(argv[1]), h = (unsigned int)atoi(argv[2]);
     double seconds = atof(argv[3]);
     int scale = argc > 4 ? atoi(argv[4]) : 1;
-    CGVirtualDisplay *v = nil;
-    // variante 1 : modes en pixels (puis sélection du mode 2x), variante 0 : modes en points
-    for (int variant = (scale > 1 ? 1 : 0); variant >= 0; variant--) {
-      v = make(w, h, scale, variant);
-      if (!v) { printf("échec : CGVirtualDisplay indisponible\n"); return 1; }
+    // en 2x : modes déclarés en pixels (le système en déduit des modes 2x), puis sélection de l'un d'eux
+    int variant = scale > 1 ? 1 : 0;
+    CGVirtualDisplay *v = make(w, h, scale, variant);
+    if (!v) { printf("échec : CGVirtualDisplay indisponible\n"); return 1; }
+    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:4]];
+    double got = scale_of(v.displayID);
+    printf("display id %u, échelle %.0f\n", v.displayID, got);
+    if (scale > 1 && (int)got != scale) {
+      printf("  sélection du mode 2x : %s\n", select_hidpi(v.displayID) ? "demandée" : "impossible");
       [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:4]];
-      double got = scale_of(v.displayID);
-      printf("variante %d : display id %u, échelle %.0f\n", variant, v.displayID, got);
-      if (scale > 1 && (int)got != scale) {
-        printf("  sélection du mode 2x : %s\n", select_hidpi(v.displayID, w) ? "demandée" : "impossible");
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:4]];
-        got = scale_of(v.displayID);
-        printf("  échelle après sélection : %.0f\n", got);
-      }
-      if ((int)got == scale || scale == 1) break;
-      v = nil;  // libère l'écran avant d'essayer l'autre variante
-      [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:3]];
+      got = scale_of(v.displayID);
+      printf("  échelle après sélection : %.0f\n", got);
     }
+    if ((int)got != scale) v = nil;
     if (!v) { printf("échec : échelle %d indisponible\n", scale); return 1; }
     printf("display id %u\n", v.displayID);
     fflush(stdout);
