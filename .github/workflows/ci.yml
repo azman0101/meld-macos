@@ -196,7 +196,9 @@ jobs:
         run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/native.dmg
         env:
           EXTRA_PATCH: patches/experimental/native-decorations.patch
-      - run: rm -f out/*.dmg; scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}" out
+      - run: rm -f out/*.dmg; scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}-1x" out
+      # un écran Retina à côté d'un écran 1x, comme sur un vrai Mac
+      - run: VD_SCALE=2 scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}-2x" out
       - run: scripts/window-size.sh /Applications/Meld.app "${{ matrix.variant }}" out
       - uses: actions/upload-artifact@v4
         if: always()

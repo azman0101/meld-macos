@@ -25,7 +25,7 @@ print(String(format: "écran %.0fx%.0f scale=%.1f, zone utile x=%.0f y=%.0f w=%.
 // tous les écrans, en coordonnées CGWindowList (origine en haut à gauche de l'écran principal)
 for (i, sc) in NSScreen.screens.enumerated() {
   let f = sc.frame
-  print(String(format: "display %d frame x=%.0f y=%.0f w=%.0f h=%.0f", i + 1, f.minX, full.maxY - f.maxY, f.width, f.height))
+  print(String(format: "display %d frame x=%.0f y=%.0f w=%.0f h=%.0f scale=%.0f", i + 1, f.minX, full.maxY - f.maxY, f.width, f.height, sc.backingScaleFactor))
 }
 
 let infos = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]
@@ -43,6 +43,7 @@ for w in infos where (w[kCGWindowOwnerPID as String] as? Int32) == pid {
                (w[kCGWindowName as String] as? String) ?? "?", r.minX, r.minY, r.width, r.height,
                String(describing: w[kCGWindowIsOnscreen as String] ?? false),
                ok ? "OK" : "HORS ZONE UTILE"))
+  guard (w[kCGWindowIsOnscreen as String] as? Bool) == true else { continue }
   let onDisplay = NSScreen.screens.enumerated().first { (_, sc) in
     let f = CGRect(x: sc.frame.minX, y: full.maxY - sc.frame.maxY, width: sc.frame.width, height: sc.frame.height)
     return f.contains(CGPoint(x: r.midX, y: r.minY + 30))

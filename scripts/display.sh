@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 #
-# Déplacement de la fenêtre de Meld vers un second écran.
+# Déplacement de la fenêtre de Meld entre deux écrans.
 #
-#   display.sh <Meld.app> <label> <dossier-de-sortie>
+#   VD_SCALE=1|2 display.sh <Meld.app> <label> <dossier-de-sortie>
 #
-# Crée un écran virtuel à droite de l'écran principal (diag/vdisplay.m), puis :
-#   boutons    : sous-rôles des boutons de la fenêtre (AXCloseButton, ... si
-#                la barre de titre est celle de macOS)
-#   ax         : déplacement par l'accessibilité vers le second écran
-#   souris     : glisser-déposer de la barre de titre vers le second écran
-# Après chaque déplacement, la position est relevée 2 s puis 8 s plus tard :
-# la fenêtre est-elle restée sur le second écran, ou revenue ?
+# Crée un second écran virtuel (diag/vdisplay.m), en 1x ou en 2x (VD_SCALE),
+# puis déplace la fenêtre de l'un à l'autre, aller et retour :
+#   ax     : par l'accessibilité (AXPosition)
+#   souris : glisser-déposer de la barre de titre
+# Après chaque déplacement, l'écran où se trouve la fenêtre est relevé 2 s puis
+# 8 s plus tard : la fenêtre est-elle restée, ou revenue en arrière ?
+# Relève aussi les boutons de la fenêtre (AXCloseButton, ... si la barre de
+# titre est celle de macOS).
 # N'échoue pas : c'est un banc de mesure, à lire dans display.txt.
 
 set -uo pipefail
@@ -18,6 +19,7 @@ set -uo pipefail
 APP=$1
 LABEL=$2
 OUT=$3
+SCALE=${VD_SCALE:-1}
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 DOMAIN=org.gnome.Meld
 mkdir -p "$OUT"
@@ -25,15 +27,15 @@ exec > >(tee -a "$OUT/display.txt") 2>&1
 
 swiftc -O -o /tmp/winfo "$HERE/diag/winfo.swift" 2>&1 | grep -v warning || true
 swiftc -O -o /tmp/drag "$HERE/diag/drag.swift" 2>&1 | grep -v warning || true
-clang -fobjc-arc -framework Foundation -framework CoreGraphics \
+clang -fobjc-arc -framework Foundation -framework CoreGraphics -framework AppKit \
   -o /tmp/vdisplay "$HERE/diag/vdisplay.m" 2>&1 | grep -v warning || true
 
 defaults delete $DOMAIN >/dev/null 2>&1 || true
 
-echo "== écran virtuel"
-/tmp/vdisplay 1280 800 600 > /tmp/vdisplay.log 2>&1 &
+echo "== $LABEL : écran virtuel en ${SCALE}x"
+/tmp/vdisplay 1280 800 900 "$SCALE" > /tmp/vdisplay.log 2>&1 &
 VD=$!
-sleep 10
+sleep 14
 cat /tmp/vdisplay.log
 
 "$APP/Contents/MacOS/Meld" "$HERE/testdata/left.py" "$HERE/testdata/right.py" &
@@ -43,42 +45,56 @@ sleep 15
 se() { osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to $1" 2>&1; }
 info() { /tmp/winfo $PID | grep -E "^display|fenêtre" | grep -v '^fenêtre ""'; }
 frame() { /tmp/winfo $PID | sed -n 's/^fenêtre "Meld" x=\(-*[0-9]*\) y=\(-*[0-9]*\) w=\([0-9]*\) h=\([0-9]*\).*/\1 \2 \3 \4/p' | head -1; }
+where() { /tmp/winfo $PID | sed -n 's/^  fenêtre sur le display \([0-9]*\).*/\1/p' | head -1; }
+displays() { /tmp/winfo $PID | sed -n "s/^display $1 frame x=\\(-*[0-9]*\\) y=\\(-*[0-9]*\\) w=\\([0-9]*\\) h=\\([0-9]*\\).*/\\1 \\2 \\3 \\4/p"; }
 
 echo "== écrans et fenêtre au départ"
 info
-read -r D2X D2Y D2W D2H < <(/tmp/winfo $PID | sed -n 's/^display 2 frame x=\(-*[0-9]*\) y=\(-*[0-9]*\) w=\([0-9]*\) h=\([0-9]*\).*/\1 \2 \3 \4/p')
+read -r D1X D1Y D1W D1H < <(displays 1)
+read -r D2X D2Y D2W D2H < <(displays 2)
 if [[ -z ${D2X:-} ]]; then
   echo "RESULT $LABEL PAS DE SECOND ÉCRAN"
   kill $PID $VD 2>/dev/null
   exit 0
 fi
-screencapture -x "$OUT/$LABEL-depart.png" || true
-
+START=$(where)
 echo "== boutons de la fenêtre : $(se 'get subrole of every button of window 1')"
 
-echo "---- ax : vers le second écran"
+# check <description> <display attendu>
+check() {
+  sleep 2; local a; a=$(where)
+  sleep 6; local b; b=$(where)
+  local verdict=OK
+  [[ $b == "$2" ]] || verdict="ÉCART (attendu display $2)"
+  echo "RESULT $LABEL $1 : display $a à +2 s, display $b à +8 s : $verdict"
+  info | grep 'fenêtre "Meld"' | sed 's/^/    /'
+}
+
+# glisser la barre de titre jusqu'au centre du display $1 (CG : x y w h)
+drag_to() {
+  local fx fy fw fh gy
+  se "set frontmost to true" >/dev/null; sleep 1
+  read -r fx fy fw fh < <(frame)
+  if se 'get subrole of every button of window 1' | grep -q AXCloseButton; then gy=14; else gy=45; fi
+  local gx=$((fx + fw / 2)); gy=$((fy + gy))
+  echo "glisser de ($gx, $gy) vers ($2, $3)"
+  /tmp/drag $gx $gy "$2" "$3"
+}
+
+echo "---- ax : vers le display 2, puis retour au display 1"
 se "set position of window 1 to {$((D2X + 150)), $((D2Y + 120))}" >/dev/null
-sleep 2; echo "-- +2 s"; info
-sleep 6; echo "-- +8 s"; info
+check "ax vers display 2" 2
 screencapture -x -D 2 "$OUT/$LABEL-ax-ecran2.png" 2>/dev/null || true
+se "set position of window 1 to {$((D1X + 150)), $((D1Y + 120))}" >/dev/null
+check "ax retour display 1" 1
 
-echo "---- souris : retour sur l'écran principal puis glissement vers le second"
-se "set position of window 1 to {100, 120}" >/dev/null
-sleep 3
-se "set frontmost to true" >/dev/null; sleep 1
-read -r FX FY FW FH < <(frame)
-if [[ -n $(se 'get subrole of every button of window 1' | grep -o AXCloseButton) ]]; then GY=14; else GY=45; fi
-GX=$((FX + FW / 2)); GY=$((FY + GY))
-TX=$((D2X + D2W / 2)); TY=$((D2Y + 200))
-echo "glisser de ($GX, $GY) vers ($TX, $TY)"
-/tmp/drag $GX $GY $TX $TY
-sleep 2; echo "-- +2 s"; info
-sleep 6; echo "-- +8 s"; info
+echo "---- souris : vers le display 2, puis retour au display 1"
+drag_to 2 $((D2X + D2W / 2)) $((D2Y + 200))
+check "souris vers display 2" 2
 screencapture -x -D 2 "$OUT/$LABEL-souris-ecran2.png" 2>/dev/null || true
+drag_to 1 $((D1X + D1W / 2)) $((D1Y + 200))
+check "souris retour display 1" 1
 screencapture -x "$OUT/$LABEL-souris-principal.png" || true
-
-ON=$(/tmp/winfo $PID | sed -n 's/^  fenêtre sur le display \([0-9]*\).*/\1/p' | head -1)
-echo "RESULT $LABEL souris : fenêtre sur le display $ON après 8 s"
 
 kill $PID $VD 2>/dev/null; wait $PID 2>/dev/null
 defaults delete $DOMAIN >/dev/null 2>&1 || true
