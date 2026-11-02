@@ -30,6 +30,13 @@ swiftc -O -o /tmp/drag "$HERE/diag/drag.swift" 2>&1 | grep -v warning || true
 clang -fobjc-arc -framework Foundation -framework CoreGraphics -framework AppKit \
   -o /tmp/vdisplay "$HERE/diag/vdisplay.m" 2>&1 | grep -v warning || true
 
+# F11 = « Afficher le bureau » (raccourcis 36 et 37) : à désactiver
+for k in 36 37; do
+  defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add $k \
+    "<dict><key>enabled</key><false/></dict>"
+done
+/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u 2>/dev/null || true
+
 defaults delete $DOMAIN >/dev/null 2>&1 || true
 
 echo "== $LABEL : écran virtuel en ${SCALE}x"
@@ -101,6 +108,26 @@ screencapture -x -D 2 "$OUT/$LABEL-souris-ecran2.png" 2>/dev/null || true
 drag_to 1 $((D1X + D1W / 2)) $((D1Y + 200))
 check "souris retour display 1" 1
 screencapture -x "$OUT/$LABEL-souris-principal.png" || true
+
+echo "---- plein écran depuis le display 2 : la fenêtre doit y rester à la sortie"
+f11() {
+  se "set frontmost to true" >/dev/null; sleep 1
+  osascript -e 'tell application "System Events" to key code 103'
+}
+se "set position of window 1 to {$((D2X + 100)), $((D2Y + 100))}" >/dev/null
+sleep 3
+f11; sleep 4
+echo "-- en plein écran (F11)"; info | grep 'fenêtre "Meld"' | sed 's/^/    /'
+f11
+check "sortie de plein écran (F11) depuis le display 2" 2
+se "set position of window 1 to {$((D2X + 100)), $((D2Y + 100))}" >/dev/null
+sleep 3
+se 'set value of attribute "AXFullScreen" of window 1 to true' >/dev/null; sleep 4
+echo "-- en plein écran (natif)"; info | grep 'fenêtre "Meld"' | sed 's/^/    /'
+se 'set value of attribute "AXFullScreen" of window 1 to false' >/dev/null
+check "sortie du plein écran natif depuis le display 2" 2
+screencapture -x -D 2 "$OUT/$LABEL-apres-plein-ecran-ecran2.png" 2>/dev/null || true
+screencapture -x "$OUT/$LABEL-apres-plein-ecran-principal.png" || true
 
 kill $PID $VD 2>/dev/null; wait $PID 2>/dev/null
 defaults delete $DOMAIN >/dev/null 2>&1 || true

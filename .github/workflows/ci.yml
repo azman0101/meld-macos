@@ -181,23 +181,32 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, macos-26]
-        variant: [orig, fix, native]
+        # released : patch de placement de main (celui des casks actuels)
+        # fixed    : patch de placement de cette branche
+        # native   : fixed + barre de titre macOS
+        variant: [orig, released, fixed, native]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       DMG: https://gitlab.com/api/v4/projects/51547804/packages/generic/meld_macos/3.22.3+105/Meld-3.22.3+105_arm64.dmg
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - if: matrix.variant == 'orig'
         run: scripts/install.sh "$DMG"
-      - if: matrix.variant == 'fix'
-        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/fix.dmg
+      - if: matrix.variant == 'released'
+        run: |
+          git show origin/main:patches/meld-3.22-window-placement.patch > "$RUNNER_TEMP/released.patch"
+          scripts/repack.sh "$DMG" "$RUNNER_TEMP/released.patch" out/released.dmg
+      - if: matrix.variant == 'fixed'
+        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/fixed.dmg
       - if: matrix.variant == 'native'
         run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/native.dmg
         env:
           EXTRA_PATCH: patches/experimental/native-decorations.patch
       - run: rm -f out/*.dmg; scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}-1x" out
-      # un écran Retina à côté d'un écran 1x, comme sur un vrai Mac
+      # un écran Retina à côté d'un écran 1x (macOS 26 seulement : l'écran 2x n'existe pas sur macOS 15)
       - run: VD_SCALE=2 scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}-2x" out
       - run: scripts/window-size.sh /Applications/Meld.app "${{ matrix.variant }}" out
       - uses: actions/upload-artifact@v4
