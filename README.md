@@ -65,20 +65,39 @@ Meld 3.22.3/3.24.1) :
 | taille enregistrée > écran       | **ÉCHEC** | OK      |
 | petite taille enregistrée        | OK        | OK      |
 
-## Plein écran
+## Fenêtre : barre de titre, écrans, plein écran
 
-Sur macOS, en sortie de plein écran (F11 ou plein écran natif), le backend
-quartz de GTK ne rend pas le cadre d'avant : la fenêtre garde la taille de
+Les patchs `patches/meld-3.22-window-placement.patch` et
+`patches/meld-3.24-window-placement.patch` corrigent trois choses sur macOS.
+
+**Barre de titre.** Meld place un `GtkHeaderBar` en barre de titre
+(décorations côté client). Le backend quartz de GTK dessine alors ses propres
+boutons et déplace la fenêtre lui-même : pas de boutons rouge/jaune/vert, donc
+pas de menu « Déplacer vers » sur le bouton vert, et une marge d'ombre
+transparente d'environ 24 pt autour de la fenêtre, qui l'empêche d'atteindre
+les bords de l'écran. La barre d'outils de Meld reste, mais comme premier
+élément de la fenêtre, sous la barre de titre de macOS (`meldwindow.py`).
+
+**Plein écran.** En sortie de plein écran (F11 ou plein écran natif), le
+backend quartz ne rend pas le cadre d'avant : la fenêtre garde la taille de
 l'écran, sa barre de titre passe sous la barre de menus, et Meld enregistre
-cette taille comme taille normale (Meld d'origine compris). Le patch de
-placement retient taille et position à l'entrée du plein écran et les
-rétablit dans la zone utile à la sortie. Mesuré par `scripts/window-size.sh`
-(job `window`, marqueur `[window]`).
+cette taille comme taille normale (Meld d'origine compris). Le patch retient
+taille et position à l'entrée du plein écran et les rétablit à la sortie.
 
-`patches/experimental/csd-no-shadow.patch` retire l'ombre des décorations
-GTK, qui fait partie de la NSWindow : une fenêtre redimensionnée à la main
-s'arrête sinon à ~24 pt des bords de l'écran. Pas encore intégré : la poignée
-de redimensionnement devient une bordure de 2 px, à valider sur un vrai Mac.
+**Plusieurs écrans.** Ce rétablissement choisit l'écran de la position
+enregistrée. Une première version utilisait toujours l'écran principal : depuis
+un second écran, la fenêtre revenait sur le principal à la sortie du plein
+écran.
+
+Mesuré en CI par `scripts/display.sh` et `scripts/window-size.sh` (jobs
+`display` et `window`, marqueurs `[display]` et `[window]`), sur macOS 15 et 26 :
+un second écran virtuel (`diag/vdisplay.m`, en 1x ; en 2x sur macOS 26 seulement)
+et de vrais glissements de souris (`diag/drag.swift`).
+
+Limites : le menu « Déplacer vers » du bouton vert et la sensation d'un
+glissement ne se testent que sur un vrai Mac. Meld d'origine, avec sa barre de
+titre GTK, se déplace sans problème entre deux écrans dans ces tests ; seule la
+sortie de plein écran de la première version du patch posait problème.
 
 ## Contenu
 
@@ -91,7 +110,9 @@ de redimensionnement devient une bordure de 2 px, à valider sur un vrai Mac.
 | `scripts/test-cask.sh`         | installe le cask depuis un tap local et vérifie              |
 | `scripts/release.sh`           | construit, teste et publie le DMG corrigé d'un tag           |
 | `scripts/window-size.sh`       | diagnostic : maximisation, plein écran et sortie             |
-| `diag/click.swift`             | double-clic souris (pour window-size.sh)                     |
+| `scripts/display.sh`           | diagnostic : déplacement entre deux écrans, plein écran       |
+| `diag/click.swift`, `diag/drag.swift` | double-clic et glisser-déposer à la souris            |
+| `diag/vdisplay.m`              | second écran virtuel (CGVirtualDisplay) pour le runner        |
 | `diag/gdkver.m`                | version de macOS vue par GTK                                 |
 | `diag/winfo.swift`             | géométrie des fenêtres et zone utile de l'écran              |
 | `patches/`                     | correctifs Meld                                              |

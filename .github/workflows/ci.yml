@@ -142,15 +142,14 @@ jobs:
           name: cask-${{ matrix.os }}-${{ matrix.cask.name }}
           path: out/
 
-  # Diagnostic plein écran / taille maximale : Meld d'origine, corrigé, et
-  # corrigé + correctifs expérimentaux. N'échoue pas : lire window-size.txt.
+  # Diagnostic plein écran / taille maximale : Meld d'origine et corrigé. N'échoue pas : lire window-size.txt.
   window:
     if: github.ref_type == 'branch' && contains(github.event.head_commit.message, '[window]')
     strategy:
       fail-fast: false
       matrix:
         os: [macos-15, macos-26]
-        variant: [orig, fix, candidate]
+        variant: [orig, fix]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
@@ -161,10 +160,6 @@ jobs:
         run: scripts/install.sh "$DMG"
       - if: matrix.variant == 'fix'
         run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/fix.dmg
-      - if: matrix.variant == 'candidate'
-        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/candidate.dmg
-        env:
-          EXTRA_PATCH: patches/experimental/csd-no-shadow.patch
       - run: rm -f out/*.dmg; scripts/window-size.sh /Applications/Meld.app "${{ matrix.variant }}" out
       - uses: actions/upload-artifact@v4
         if: always()
@@ -172,19 +167,18 @@ jobs:
           name: window-${{ matrix.os }}-${{ matrix.variant }}
           path: out/
 
-  # Déplacement vers un second écran (virtuel) et boutons de fenêtre : Meld
-  # d'origine, corrigé, et corrigé + barre de titre macOS. N'échoue pas :
-  # lire display.txt. Le plein écran est mesuré en même temps.
+  # Déplacement entre deux écrans (virtuels), plein écran depuis le second écran
+  # et boutons de fenêtre : Meld d'origine, patch de main, patch de la branche.
+  # N'échoue pas : lire display.txt.
   display:
     if: github.ref_type == 'branch' && contains(github.event.head_commit.message, '[display]')
     strategy:
       fail-fast: false
       matrix:
         os: [macos-15, macos-26]
-        # released : patch de placement de main (celui des casks actuels)
-        # fixed    : patch de placement de cette branche
-        # native   : fixed + barre de titre macOS
-        variant: [orig, released, fixed, native]
+        # released : patch de placement de main
+        # current  : patch de placement de cette branche
+        variant: [orig, released, current]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -199,12 +193,8 @@ jobs:
         run: |
           git show origin/main:patches/meld-3.22-window-placement.patch > "$RUNNER_TEMP/released.patch"
           scripts/repack.sh "$DMG" "$RUNNER_TEMP/released.patch" out/released.dmg
-      - if: matrix.variant == 'fixed'
-        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/fixed.dmg
-      - if: matrix.variant == 'native'
-        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/native.dmg
-        env:
-          EXTRA_PATCH: patches/experimental/native-decorations.patch
+      - if: matrix.variant == 'current'
+        run: scripts/repack.sh "$DMG" patches/meld-3.22-window-placement.patch out/current.dmg
       - run: rm -f out/*.dmg; scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}-1x" out
       # un écran Retina à côté d'un écran 1x (macOS 26 seulement : l'écran 2x n'existe pas sur macOS 15)
       - run: VD_SCALE=2 scripts/display.sh /Applications/Meld.app "${{ matrix.variant }}-2x" out
