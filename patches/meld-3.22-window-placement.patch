@@ -13,7 +13,7 @@ index e71f5779..f4367225 100644
  
  from meld.settings import load_settings_schema
  
-@@ -52,11 +54,82 @@
+@@ -52,11 +54,88 @@
          self.settings.bind('is-fullscreen', self, 'is-fullscreen', bind_flags)
  
          window.set_default_size(self.props.width, self.props.height)
@@ -61,11 +61,17 @@ index e71f5779..f4367225 100644
 +    def fit_to_workarea(self, window, width, height, position=None):
 +        """Resize and move the window to fit in the screen's work area
 +
-+        The window is centred, or kept at position if it fits there.
++        The window is centred on the primary display, or kept at position if
++        it fits on the display that position is on.
 +        """
 +        gdk_window = window.get_window()
 +        display = window.get_display()
-+        monitor = display.get_primary_monitor() or display.get_monitor(0)
++        if position is not None:
++            # leaving fullscreen: stay on the display the window was on
++            monitor = display.get_monitor_at_point(
++                position[0] + width // 2, position[1] + height // 2)
++        else:
++            monitor = display.get_primary_monitor() or display.get_monitor(0)
 +        if gdk_window is None or monitor is None:
 +            return False
 +
@@ -96,3 +102,50 @@ index e71f5779..f4367225 100644
      def on_size_allocate(self, window, allocation):
          if not (self.props.is_maximized or self.props.is_fullscreen):
              width, height = window.get_size()
+diff --git a/meld/meldwindow.py b/meld/meldwindow.py
+--- a/meld/meldwindow.py
++++ b/meld/meldwindow.py
+@@ -16,6 +16,7 @@
+ 
+ import logging
+ import os
++import sys
+ from typing import Any, Dict, Optional, Sequence
+ 
+ from gi.repository import Gdk, Gio, GLib, Gtk
+@@ -63,6 +64,9 @@
+     def __init__(self):
+         super().__init__()
+ 
++        if sys.platform == "darwin":
++            self.use_native_title_bar()
++
+         # Manually handle GAction additions
+         actions = (
+             ("close", self.action_close),
+@@ -117,6 +121,25 @@
+             style_context = self.get_style_context()
+             style_context.add_class("devel")
+ 
++    def use_native_title_bar(self):
++        """Use the macOS title bar instead of a client-side one
++
++        With a header bar as its titlebar, GTK's quartz backend draws its
++        own window buttons: the window has no red/yellow/green buttons, so
++        it can't be moved to another display or zoomed like any other, and
++        it is moved by GTK instead of by macOS. Keep the header bar, but as
++        the first widget of the window, below the native title bar.
++        """
++        header_bar = self.get_titlebar()
++        if header_bar is None:
++            return
++        self.set_titlebar(None)
++        header_bar.set_show_close_button(False)
++        header_bar.set_title("")
++        header_bar.get_style_context().remove_class(Gtk.STYLE_CLASS_TITLEBAR)
++        self.appvbox.pack_start(header_bar, False, True, 0)
++        self.appvbox.reorder_child(header_bar, 0)
++
+     def do_realize(self):
+         Gtk.ApplicationWindow.do_realize(self)
+ 
